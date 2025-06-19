@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reuben Swap - Support</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+    <script type="text/javascript">
+        (function() {
+            emailjs.init("Q8GIVJG7flv_vYGA0"); // Your Public Key
+        })();
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light blue-gray background */
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+    <header class="bg-gradient-to-r from-purple-700 to-indigo-700 text-white shadow-lg p-4 md:p-6">
+        <div class="container mx-auto flex flex-col md:flex-row justify-between items-center">
+            <h1 class="text-3xl md:text-4xl font-bold text-center md:text-left mb-2 md:mb-0">
+                Reuben swap trade buy go
+            </h1>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-4 md:p-8 flex-grow">
+        <section class="bg-white p-6 rounded-xl shadow-lg animate-fade-in">
+            <h2 class="text-3xl font-bold mb-6 text-center text-green-700">Support Center</h2>
+            <p class="text-lg text-gray-700 mb-6 text-center">
+                Need assistance? Please select a category and fill out the form below.
+            </p>
+
+            <div class="max-w-2xl mx-auto bg-gray-50 p-6 rounded-lg shadow-md border border-gray-200">
+                <form id="supportForm" class="space-y-5">
+                    <div>
+                        <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
+                        <input
+                            type="text"
+                            id="name"
+                            name="name"
+                            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Your Email</label>
+                        <input
+                            type="email"
+                            id="email"
+                            name="email"
+                            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                            required
+                        />
+                    </div>
+
+                    <div>
+                        <label for="category" class="block text-sm font-medium text-gray-700 mb-1">Select a Category</label>
+                        <select
+                            id="category"
+                            name="category"
+                            onchange="handleCategoryChange()"
+                            class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm rounded-md shadow-sm"
+                            required
+                        >
+                            <option value="">Select a Category</option>
+                            <option value="device-condition">📱 Device Condition & Valuation</option>
+                            <option value="trade-in-process">🔄 Trade-In Process</option>
+                            <option value="buying-devices">💰 Buying Used Devices</option>
+                            <option value="local-pickup-dropoff">📍 Local Pickup & Drop-off</option>
+                            <option value="payment-refunds">💳 Payment & Refunds</option>
+                            <option value="tech-support-android">🤖 Technical Support (Android)</option>
+                            <option value="tech-support-apple">🍎 Technical Support (Apple)</option>
+                            <option value="warranty-returns">🛡️ Warranty & Returns</option>
+                            <option value="privacy-data">🔒 Privacy & Data</option>
+                            <option value="site-navigation">🧭 Site Navigation</option>
+                            <option value="partnership-inquiries">🤝 Partnership Inquiries</option>
+                            <option value="general-feedback">💡 General Feedback & Suggestions</option>
+                            <option value="accessibility">♿ Accessibility Help</option>
+                            <option value="legal-terms">⚖️ Legal & Terms</option>
+                            <option value="other-questions">❓ Other Help & Questions</option>
+                        </select>
+                    </div>
+
+                    <div id="subcategory-container" class="hidden">
+                        <label for="subcategory" class="block text-sm font-medium text-gray-700 mb-1">Select a Subcategory</label>
+                        <select
+                            id="subcategory"
+                            name="subcategory"
+                            class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm rounded-md shadow-sm"
+                            required
+                        >
+                            <option value="">Select a Subcategory</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="subject" class="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                        <input
+                            type="text"
+                            id="subject"
+                            name="subject"
+                            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label for="message" class="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                        <textarea
+                            id="message"
+                            name="message"
+                            rows="4"
+                            class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                            required
+                        ></textarea>
+                    </div>
+
+                    <button
+                        type="submit"
+                        class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md shadow-lg transition duration-300 ease-in-out transform hover:scale-105"
+                    >
+                        Submit Request
+                    </button>
+
+                    <div id="messageSent" class="mt-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded-md text-center hidden">
+                        Your support request has been submitted successfully! We'll get back to you soon.
+                    </div>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-gray-800 text-white py-6 mt-10 rounded-t-lg shadow-inner">
+        <div class="container mx-auto text-center">
+            <p class="text-sm">&copy; <span id="currentYear"></span> Reuben swap trade buy go. All rights reserved.</p>
+            <p class="text-xs mt-2">Trade, Buy, Go with ease!</p>
+        </div>
+    </footer>
+
+    <script>
+        // Data structure for categories and subcategories
+        const categories = {
+            'device-condition': ['❓ How to Assess Condition', '❓ Getting a Quote', '❓ What Affects Value', '❓ Price Guarantee'],
+            'trade-in-process': ['❓ Starting a Trade-In', '❓ Preparing Your Device', '❓ Trade-In Status', '❓ Cancelling a Trade'],
+            'buying-devices': ['❓ Searching for Devices', '❓ Device Authenticity', '❓ Purchase Process', '❓ Device History'],
+            'local-pickup-dropoff': ['❓ Arranging Pickup', '❓ Arranging Drop-off', '❓ Meeting Point Details', '❓ Safety Guidelines'],
+            'payment-refunds': ['❓ Accepted Payment Methods', '❓ Refund Policy', '❓ Payment Processing Time', '❓ Charge Disputes'],
+            'tech-support-android': ['❓ Android OS Issues', '❓ App Crashes (Android)', '❓ Network Problems (Android)', '❓ Data Transfer (Android)'],
+            'tech-support-apple': ['❓ iOS Issues', '❓ App Crashes (Apple)', '❓ Network Problems (Apple)', '❓ Data Transfer (Apple)'],
+            'warranty-returns': ['❓ Warranty Coverage', '❓ Return Policy', '❓ How to Initiate a Return', '❓ Defective Device Claims'],
+            'privacy-data': ['❓ Data Security', '❓ Data Deletion', '❓ Privacy Policy Questions', '❓ Marketing Preferences'],
+            'site-navigation': ['❓ Finding Information', '❓ Search Functionality', '❓ Page Load Issues', '❓ Browser Compatibility'],
+            'partnership-inquiries': ['❓ Become a Reseller', '❓ Corporate Deals', '❓ Bulk Trading', '❓ Affiliate Program'],
+            'general-feedback': ['💡 Suggestion Box', '🐛 Report a Bug', '👏 Compliments', '❓ General Questions'],
+            'accessibility': ['❓ Screen Reader Support', '❓ Keyboard Navigation', '❓ Font Size', '❓ Color Contrast'],
+            'legal-terms': ['⚖️ Terms of Service', '🔒 Privacy Policy', '🍪 Cookie Policy', '©️ Copyright Information'],
+            'other-questions': ['❓ I have another question not listed here']
+        };
+
+        /**
+         * Handles the change event for the category dropdown.
+         * Populates the subcategory dropdown based on the selected category.
+         */
+        function handleCategoryChange() {
+            const categorySelect = document.getElementById('category');
+            const subcategoryContainer = document.getElementById('subcategory-container');
+            const subcategorySelect = document.getElementById('subcategory');
+            const selectedCategory = categorySelect.value;
+
+            // Clear previous subcategory options
+            subcategorySelect.innerHTML = '<option value="">Select a Subcategory</option>';
+
+            if (selectedCategory && categories[selectedCategory]) {
+                // Show subcategory dropdown
+                subcategoryContainer.classList.remove('hidden');
+                // Populate subcategories
+                categories[selectedCategory].forEach(subcat => {
+                    const option = document.createElement('option');
+                    option.value = subcat.replace(/ /g, '-').toLowerCase(); // Create a slug-like value
+                    option.textContent = subcat;
+                    subcategorySelect.appendChild(option);
+                });
+            } else {
+                // Hide subcategory dropdown if no category is selected
+                subcategoryContainer.classList.add('hidden');
+            }
+
+            // Hide the success message when category changes
+            document.getElementById('messageSent').classList.add('hidden');
+        }
+
+        /**
+         * Handles the form submission and sends data via EmailJS.
+         */
+        document.getElementById('supportForm').addEventListener('submit', function(event) {
+            event.preventDefault(); // Prevent default form submission
+
+            // Show a temporary message or disable button to indicate submission is in progress
+            const submitButton = this.querySelector('button[type="submit"]');
+            submitButton.textContent = 'Sending...';
+            submitButton.disabled = true;
+
+            emailjs.sendForm('service_1dp041q', 'template_fq4nots', this)
+                .then(function() {
+                    console.log('SUCCESS!');
+                    document.getElementById('messageSent').classList.remove('hidden');
+                    // Reset the form after successful submission
+                    document.getElementById('supportForm').reset();
+                    document.getElementById('subcategory-container').classList.add('hidden'); // Hide subcategory
+                    document.getElementById('subcategory').innerHTML = '<option value="">Select a Subcategory</option>'; // Clear subcategory options
+                }, function(error) {
+                    console.log('FAILED...', error);
+                    alert('Failed to send your request. Please try again later.'); // User-friendly error message
+                })
+                .finally(function() {
+                    submitButton.textContent = 'Submit Request';
+                    submitButton.disabled = false;
+                });
+        });
+
+        // Set current year in footer
+        document.getElementById('currentYear').textContent = new Date().getFullYear();
+    </script>
+</body>
+</html>
