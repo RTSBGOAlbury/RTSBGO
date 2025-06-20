@@ -254,9 +254,12 @@
 
     <!-- Firebase SDKs -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
+        // getAnalytics is imported but not used in this app's core functionality, so it's commented out
+        // import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
 
         // Global variables for Firebase instances and application state
         let app;
@@ -272,15 +275,15 @@
         const STAFF_EMAIL = 'rtsbgoalbury@gmail.com';
         const STAFF_PASSWORD = 'password123';
 
-        // Firebase config (using the one from the React code)
+        // Your web app's Firebase configuration - UPDATED HERE
         const firebaseConfig = {
-            apiKey: "AIzaSyBQbL6bpHc5QnD8Okx4ecGIkJo-LSh630I",
-            authDomain: "rtsbgadmininv.firebaseapp.com",
-            projectId: "rtsbgadmininv",
-            storageBucket: "rtsbgadmininv.firebasestorage.app",
-            messagingSenderId: "1003976894265",
-            appId: "1:1003976894265:web:5005f477c281c5a33c2ae8",
-            measurementId: "G-WX0CFDQEKR"
+            apiKey: "AIzaSyAxGkYps4eZ3eAq8x1UVQqzqGxh-K1ruM8",
+            authDomain: "rtsbgoinv.firebaseapp.com",
+            projectId: "rtsbgoinv",
+            storageBucket: "rtsbgoinv.firebasestorage.app",
+            messagingSenderId: "399958019959",
+            appId: "1:399958019959:web:ed00cf65496cb3a1189b72",
+            measurementId: "G-6Y2SWM3JYP"
         };
 
         // Get elements
@@ -328,21 +331,35 @@
 
         // Initialize Firebase on window load
         window.onload = function() {
+            console.log("Window loaded. Initializing Firebase...");
             if (!firebaseConfig || !firebaseConfig.apiKey) {
                 console.error("Firebase config is not properly defined. Please check your firebaseConfig object.");
+                loginErrorMessage.textContent = "Firebase configuration missing. Please contact support.";
+                loginErrorMessage.classList.remove('hidden');
                 return;
             }
 
             app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
+            // If you wanted to use analytics, you'd initialize it here:
+            // const analytics = getAnalytics(app);
+            console.log("Firebase initialized. Attempting anonymous sign-in...");
 
             // Authenticate user for initial app access and Firestore data fetching
             const authenticateUser = async () => {
                 try {
-                    await signInAnonymously(auth);
+                    if (typeof __initial_auth_token !== 'undefined') {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                        console.log("Signed in with custom token (Canvas environment token).");
+                    } else {
+                        await signInAnonymously(auth);
+                        console.log("Signed in anonymously (no Canvas environment token provided).");
+                    }
                 } catch (error) {
                     console.error("Firebase initial authentication error (anonymous sign-in failed):", error);
+                    loginErrorMessage.textContent = "Anonymous login failed. You might not see all features. Check console for details.";
+                    loginErrorMessage.classList.remove('hidden');
                 }
             };
 
@@ -350,8 +367,10 @@
             onAuthStateChanged(auth, (user) => {
                 if (user) {
                     currentUserId = user.uid;
+                    console.log("Auth state changed. User ID set:", currentUserId);
                 } else {
                     currentUserId = crypto.randomUUID(); // Fallback for unauthenticated users if anonymous sign-in fails
+                    console.log("Auth state changed. User ID (anonymous fallback) set:", currentUserId);
                 }
                 isAuthReady = true; // Mark auth as ready once initial check is done
                 renderUserId(); // Update UI with user ID
@@ -364,7 +383,10 @@
             staffLoginBtn.addEventListener('click', () => showModal(staffLoginModal));
             staffLogoutBtn.addEventListener('click', handleStaffLogout);
             staffLoginModalBtn.addEventListener('click', handleStaffLogin);
-            closeStaffLoginModalBtn.addEventListener('click', () => hideModal(staffLoginModal));
+            closeStaffLoginModalBtn.addEventListener('click', () => {
+                hideModal(staffLoginModal);
+                loginErrorMessage.classList.add('hidden'); // Clear error message on close
+            });
             deviceForm.addEventListener('submit', handleAddOrUpdateDevice);
             cancelEditBtn.addEventListener('click', cancelEditing);
             confirmDeleteBtn.addEventListener('click', handleDeleteDevice);
@@ -396,6 +418,7 @@
             }
 
             try {
+                console.log("Attempting staff login with email:", staffEmailInput.value);
                 const userCredential = await signInWithEmailAndPassword(auth, staffEmailInput.value, staffPasswordInput.value);
                 if (userCredential.user) {
                     if (userCredential.user.email === STAFF_EMAIL) {
@@ -407,10 +430,12 @@
                         loginErrorMessage.classList.add('hidden');
                         staffEmailInput.value = '';
                         staffPasswordInput.value = '';
+                        console.log("Staff logged in successfully.");
                     } else {
                         loginErrorMessage.textContent = "Login successful, but this account is not registered as staff.";
                         loginErrorMessage.classList.remove('hidden');
                         signOut(auth); // Sign out non-staff account
+                        console.warn("User logged in but email does not match staff email.");
                     }
                 }
             } catch (error) {
@@ -444,6 +469,7 @@
                 deviceForm.classList.add('hidden');
                 hideModal(pendingInfoModal); // Ensure pending info modal is closed
                 cancelEditing(); // Reset form and editing state
+                console.log("Staff logout complete.");
             } catch (error) {
                 console.error("Error during staff logout:", error);
             }
@@ -452,11 +478,11 @@
         // Fetch devices when Firebase is ready and userId is available
         function fetchDevices() {
             if (!db || !isAuthReady) {
-                console.log("Waiting for DB or Auth to be ready. DB:", !!db, "AuthReady:", isAuthReady, "UserId:", currentUserId);
+                console.log("Waiting for DB or Auth to be ready before fetching devices. DB:", !!db, "AuthReady:", isAuthReady, "UserId:", currentUserId);
                 return; // Wait for Firebase to be initialized and auth to be ready
             }
 
-            console.log("Firebase DB and Auth are ready. Attempting to fetch devices for userId:", currentUserId);
+            console.log("Firebase DB and Auth are ready. Attempting to set up real-time listener for devices under path artifacts/[appId]/public/data/devices for userId:", currentUserId);
 
             // Define the collection path for public data
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -464,13 +490,17 @@
 
             // Set up real-time listener for devices
             onSnapshot(devicesCollectionRef, (snapshot) => {
+                console.log("onSnapshot listener triggered. Changes received:", snapshot.docChanges().length);
                 const fetchedDevices = snapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
                 }));
+                console.log("Fetched devices:", fetchedDevices);
                 renderDevices(fetchedDevices); // Render devices to the UI
             }, (error) => {
-                console.error("Error fetching devices:", error);
+                console.error("Error fetching devices with onSnapshot:", error);
+                loginErrorMessage.textContent = "Error loading devices. Check console for database rules or connection issues.";
+                loginErrorMessage.classList.remove('hidden');
             });
         }
 
@@ -561,16 +591,20 @@
             // Ensure staff is logged in before proceeding
             if (!isStaffLoggedIn) {
                 console.warn("Attempted to add/update device without staff privileges.");
+                loginErrorMessage.textContent = "You need staff privileges to add/update devices.";
+                loginErrorMessage.classList.remove('hidden');
                 return;
             }
 
             if (!deviceNameInput.value.trim()) {
-                alert('Please enter a device name.'); // Consider custom modal
+                alert('Please enter a device name.'); // Consider custom modal for this later
                 return;
             }
 
             if (!db || !currentUserId) {
                 console.error("Firestore DB not initialized or User ID not available.");
+                loginErrorMessage.textContent = "Database not ready. Please try again.";
+                loginErrorMessage.classList.remove('hidden');
                 return;
             }
 
@@ -603,8 +637,11 @@
                 deviceTypeSelect.value = 'Android';
                 deviceStatusSelect.value = 'Available'; // Set default status for new entry back to Available
                 cancelEditing(); // Reset form for new entry
+                loginErrorMessage.classList.add('hidden'); // Clear any previous general error
             } catch (error) {
                 console.error("Error adding/updating device:", error);
+                loginErrorMessage.textContent = `Failed to save device: ${error.message}. Check console for details.`;
+                loginErrorMessage.classList.remove('hidden');
             }
         }
 
@@ -613,6 +650,8 @@
             // Ensure staff is logged in before proceeding
             if (!isStaffLoggedIn) {
                 console.warn("Attempted to delete device without staff privileges.");
+                loginErrorMessage.textContent = "You need staff privileges to delete devices.";
+                loginErrorMessage.classList.remove('hidden');
                 hideModal(deleteConfirmModal); // Close modal if somehow opened without login
                 deviceToDelete = null;
                 return;
@@ -620,6 +659,8 @@
 
             if (!db || !deviceToDelete) {
                 console.error("Firestore DB not initialized or no device selected for deletion.");
+                loginErrorMessage.textContent = "Database not ready or no device selected for deletion.";
+                loginErrorMessage.classList.remove('hidden');
                 return;
             }
             try {
@@ -629,14 +670,22 @@
                 console.log("Device deleted successfully!");
                 hideModal(deleteConfirmModal); // Close the modal
                 deviceToDelete = null; // Clear the device to delete
+                loginErrorMessage.classList.add('hidden'); // Clear any previous general error
             } catch (error) {
                 console.error("Error deleting device:", error);
+                loginErrorMessage.textContent = `Failed to delete device: ${error.message}. Check console for details.`;
+                loginErrorMessage.classList.remove('hidden');
             }
         }
 
         // Function to set up the form for editing
         function startEditing(device) {
-            if (!isStaffLoggedIn) return; // Prevent editing if not staff
+            if (!isStaffLoggedIn) {
+                console.warn("Non-staff attempted to start editing.");
+                loginErrorMessage.textContent = "You need staff privileges to edit devices.";
+                loginErrorMessage.classList.remove('hidden');
+                return;
+            }
             editingDeviceId = device.id;
             deviceNameInput.value = device.name;
             deviceTypeSelect.value = device.type;
@@ -645,6 +694,7 @@
             formTitle.textContent = 'Edit Device';
             submitDeviceBtn.textContent = 'Save Changes';
             cancelEditBtn.classList.remove('hidden');
+            loginErrorMessage.classList.add('hidden'); // Clear error message when starting edit
         }
 
         // Function to cancel editing
@@ -657,11 +707,17 @@
             formTitle.textContent = 'Add New Device';
             submitDeviceBtn.textContent = 'Add Device';
             cancelEditBtn.classList.add('hidden');
+            loginErrorMessage.classList.add('hidden'); // Clear error message when cancelling
         }
 
         // Show delete confirmation modal
         function confirmDelete(device) {
-            if (!isStaffLoggedIn) return; // Prevent deleting if not staff
+            if (!isStaffLoggedIn) {
+                console.warn("Non-staff attempted to confirm delete.");
+                loginErrorMessage.textContent = "You need staff privileges to delete devices.";
+                loginErrorMessage.classList.remove('hidden');
+                return;
+            }
             deviceToDelete = device;
             deviceToDeleteNameElem.textContent = device.name;
             showModal(deleteConfirmModal);
