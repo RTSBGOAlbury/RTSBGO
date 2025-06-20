@@ -1,706 +1,677 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
-import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-
-// Define the main App component
-const App = () => {
-    // State variables for Firebase and user
-    const [db, setDb] = useState(null);
-    const [auth, setAuth] = useState(null);
-    const [userId, setUserId] = useState(null);
-    const [isAuthReady, setIsAuthReady] = useState(false);
-
-    // State variables for device input form
-    const [deviceName, setDeviceName] = useState('');
-    const [deviceType, setDeviceType] = useState('Android'); // Default to Android
-    const [deviceStatus, setDeviceStatus] = useState('Available'); // Default to Available
-
-    // State for storing the list of devices from Firestore
-    const [devices, setDevices] = useState([]);
-
-    // State for editing functionality
-    const [editingDeviceId, setEditingDeviceId] = useState(null);
-
-    // State for managing the delete confirmation modal
-    const [showDeleteModal, setShowDeleteModal] = useState(false);
-    const [deviceToDelete, setDeviceToDelete] = useState(null); 
-
-    // Staff access states for email/password login
-    const [isStaffLoggedIn, setIsStaffLoggedIn] = useState(false);
-    const [staffEmailInput, setStaffEmailInput] = useState('');
-    const [staffPasswordInput, setStaffPasswordInput] = useState('');
-    const [showStaffLoginModal, setShowStaffLoginModal] = useState(false);
-    const [loginError, setLoginError] = useState('');
-
-    // NEW: State for pending device info modal (per item)
-    const [showPendingInfoModal, setShowPendingInfoModal] = useState(false);
-    const [currentPendingDeviceName, setCurrentPendingDeviceName] = useState('');
-
-
-    // Pre-defined staff credentials for demonstration (In a real app, manage securely!)
-    const STAFF_EMAIL = 'rtsbgoalbury@gmail.com'; 
-    const STAFF_PASSWORD = 'password123';
-
-    // References to __app_id and firebaseConfig (using the one you provided)
-    const appId = useRef(typeof __app_id !== 'undefined' ? __app_id : 'default-app-id');
-    // Using the firebaseConfig provided by the user
-    const firebaseConfig = useRef({
-        apiKey: "AIzaSyBQbL6bpHc5QnD8Okx4ecGIkJo-LSh630I",
-        authDomain: "rtsbgadmininv.firebaseapp.com",
-        projectId: "rtsbgadmininv",
-        storageBucket: "rtsbgadmininv.firebasestorage.app",
-        messagingSenderId: "1003976894265",
-        appId: "1:1003976894265:web:5005f477c281c5a33c2ae8",
-        measurementId: "G-WX0CFDQEKR"
-    });
-
-    // Initialize Firebase and handle authentication
-    useEffect(() => {
-        if (!firebaseConfig.current || !firebaseConfig.current.apiKey) {
-            console.error("Firebase config is not properly defined. Please check your firebaseConfig object.");
-            return;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Inventory</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
         }
-
-        const app = initializeApp(firebaseConfig.current);
-        const firestore = getFirestore(app);
-        const firebaseAuth = getAuth(app);
-
-        setDb(firestore);
-        setAuth(firebaseAuth);
-
-        // Authenticate user for initial app access and Firestore data fetching
-        const authenticateUser = async () => {
-            try {
-                await signInAnonymously(firebaseAuth);
-            } catch (error) {
-                console.error("Firebase initial authentication error (anonymous sign-in failed):", error);
-            }
-        };
-
-        // Listen for auth state changes to set userId and indicate auth readiness
-        const unsubscribeAuth = onAuthStateChanged(firebaseAuth, (user) => {
-            if (user) {
-                setUserId(user.uid);
-            } else {
-                setUserId(crypto.randomUUID()); // Fallback for unauthenticated users if anonymous sign-in fails
-            }
-            setIsAuthReady(true); // Mark auth as ready once initial check is done
-        });
-
-        authenticateUser(); // Call to attempt anonymous sign-in
-
-        // Cleanup subscription on unmount
-        return () => unsubscribeAuth();
-    }, []); // Run once on component mount
-
-    // Fetch devices when Firebase is ready and userId is available
-    useEffect(() => {
-        if (!db || !isAuthReady) {
-            console.log("Waiting for DB or Auth to be ready. DB:", !!db, "AuthReady:", isAuthReady, "UserId:", userId);
-            return; // Wait for Firebase to be initialized and auth to be ready
+        /* Custom yellow circle icon */
+        .pending-circle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1rem; /* Adjust size as needed */
+            height: 1rem;
+            background-color: #f59e0b; /* Tailwind yellow-500 */
+            border-radius: 50%;
+            margin-left: 0.5rem;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
         }
-
-        console.log("Firebase DB and Auth are ready. Attempting to fetch devices for userId:", userId);
-
-        // Define the collection path for public data
-        const devicesCollectionRef = collection(db, `artifacts/${appId.current}/public/data/devices`);
-
-        // Set up real-time listener for devices
-        const unsubscribe = onSnapshot(devicesCollectionRef, (snapshot) => {
-            const fetchedDevices = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }));
-            setDevices(fetchedDevices);
-        }, (error) => {
-            console.error("Error fetching devices:", error);
-        });
-
-        // Cleanup subscription on unmount
-        return () => unsubscribe();
-    }, [db, isAuthReady, userId]); // Re-run when db, isAuthReady, or userId changes
-
-    // Handle adding or updating a device
-    const handleAddOrUpdateDevice = async (e) => {
-        e.preventDefault(); // Prevent default form submission
-
-        // Ensure staff is logged in before proceeding
-        if (!isStaffLoggedIn) {
-            console.warn("Attempted to add/update device without staff privileges.");
-            return;
+        .pending-circle:hover {
+            background-color: #d97706; /* Darker yellow on hover */
         }
-
-        if (!deviceName.trim()) {
-            alert('Please enter a device name.'); // Consider custom modal
-            return;
+        /* Modal Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
         }
-
-        if (!db || !userId) {
-            console.error("Firestore DB not initialized or User ID not available.");
-            return;
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
         }
-
-        try {
-            if (editingDeviceId) {
-                // Update existing device
-                const deviceDocRef = doc(db, `artifacts/${appId.current}/public/data/devices`, editingDeviceId);
-                await updateDoc(deviceDocRef, {
-                    name: deviceName,
-                    type: deviceType,
-                    status: deviceStatus,
-                });
-                setEditingDeviceId(null); // Clear editing state
-                console.log("Device updated successfully!");
-            } else {
-                // Add new device
-                const devicesCollectionRef = collection(db, `artifacts/${appId.current}/public/data/devices`);
-                await addDoc(devicesCollectionRef, {
-                    name: deviceName,
-                    type: deviceType,
-                    status: deviceStatus,
-                    userId: userId, // Store the userId with the device for ownership/filtering
-                    createdAt: new Date().toISOString(), // Add a timestamp
-                });
-                console.log("Device added successfully!");
-            }
-            // Clear form fields after action
-            setDeviceName('');
-            setDeviceType('Android');
-            setDeviceStatus('Available'); // Set default status for new entry back to Available
-        } catch (error) {
-            console.error("Error adding/updating device:", error);
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            max-width: 90%;
+            width: 400px;
+            transform: translateY(-20px);
+            transition: transform 0.3s ease;
         }
-    };
-
-    // Handle deleting a device
-    const handleDeleteDevice = async () => {
-        // Ensure staff is logged in before proceeding
-        if (!isStaffLoggedIn) {
-            console.warn("Attempted to delete device without staff privileges.");
-            setShowDeleteModal(false); // Close modal if somehow opened without login
-            setDeviceToDelete(null);
-            return;
+        .modal-overlay.show .modal-content {
+            transform: translateY(0);
         }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-100 flex flex-col items-center p-4 sm:p-6 font-inter">
 
-        if (!db || !deviceToDelete) {
-            console.error("Firestore DB not initialized or no device selected for deletion.");
-            return;
-        }
-        try {
-            const deviceDocRef = doc(db, `artifacts/${appId.current}/public/data/devices`, deviceToDelete.id);
-            await deleteDoc(deviceDocRef);
-            console.log("Device deleted successfully!");
-            setShowDeleteModal(false); // Close the modal
-            setDeviceToDelete(null); // Clear the device to delete
-        } catch (error) {
-            console.error("Error deleting device:", error);
-        }
-    };
+    <div class="w-full max-w-4xl bg-white rounded-xl shadow-2xl p-6 sm:p-8 space-y-8">
+        <h1 class="text-4xl sm:text-5xl font-extrabold text-center text-indigo-700 mb-8">
+            Device Inventory
+        </h1>
 
-    // Function to set up the form for editing
-    const startEditing = (device) => {
-        if (!isStaffLoggedIn) return; // Prevent editing if not staff
-        setEditingDeviceId(device.id);
-        setDeviceName(device.name);
-        setDeviceType(device.type);
-        setDeviceStatus(device.status);
-    };
+        <!-- User ID Display -->
+        <div id="userIdDisplay" class="text-center text-sm text-gray-600 mb-6 hidden">
+            <p>Your User ID (for sharing/collaboration):</p>
+            <p id="currentUserId" class="font-mono bg-gray-100 p-2 rounded-lg inline-block break-all select-all"></p>
+        </div>
 
-    // Function to cancel editing
-    const cancelEditing = () => {
-        setEditingDeviceId(null);
-        setDeviceName('');
-        setDeviceType('Android');
-        setDeviceStatus('Available'); // Reset to Available
-    };
+        <!-- Staff Login/Logout Button -->
+        <div class="text-center mb-6">
+            <button id="staffLoginBtn"
+                class="px-4 py-2 text-sm bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-300 transform hover:scale-105">
+                Staff Login
+            </button>
+            <button id="staffLogoutBtn"
+                class="px-4 py-2 text-sm bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition duration-300 transform hover:scale-105 hidden">
+                Staff Logout
+            </button>
+        </div>
 
-    // Show delete confirmation modal
-    const confirmDelete = (device) => {
-        if (!isStaffLoggedIn) return; // Prevent deleting if not staff
-        setDeviceToDelete(device);
-        setShowDeleteModal(true);
-    };
-
-    // NEW: Filter for devices that are 'Available' or 'Pending' and displayed as 'Working'
-    const getWorkingDevices = (type) => {
-        return devices.filter(device => device.type === type && (device.status === 'Available' || device.status === 'Pending'));
-    };
-
-    // Filter for devices that are 'Broken'
-    const getBrokenDevices = (type) => {
-        return devices.filter(device => device.type === type && device.status === 'Broken');
-    };
-    
-    // NEW: Open pending info modal
-    const handleOpenPendingInfo = (deviceName) => {
-        setCurrentPendingDeviceName(deviceName);
-        setShowPendingInfoModal(true);
-    };
-
-    // Handle staff email/password login
-    const handleStaffLogin = async () => {
-        setLoginError(''); // Clear previous errors
-        if (!auth) {
-            setLoginError("Firebase Auth not initialized.");
-            console.error("Firebase Auth not initialized for staff login.");
-            return;
-        }
-
-        try {
-            const userCredential = await signInWithEmailAndPassword(auth, staffEmailInput, staffPasswordInput);
-            if (userCredential.user) {
-                if (userCredential.user.email === STAFF_EMAIL) {
-                    setIsStaffLoggedIn(true);
-                    setShowStaffLoginModal(false);
-                    setStaffEmailInput('');
-                    setStaffPasswordInput('');
-                    setLoginError('');
-                } else {
-                    setLoginError("Login successful, but this account is not registered as staff.");
-                    auth.signOut();
-                }
-            }
-        } catch (error) {
-            console.error("Staff login error:", error);
-            let errorMessage = "Login failed. Please check your email and password.";
-            if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-                errorMessage = "Invalid email or password.";
-            } else if (error.code === 'auth/invalid-email') {
-                errorMessage = "Invalid email format.";
-            }
-            setLoginError(errorMessage);
-        }
-    };
-
-    // Handle staff logout
-    const handleStaffLogout = async () => {
-        try {
-            if (auth) {
-                await auth.signOut();
-                console.log("Staff logged out.");
-            }
-            setIsStaffLoggedIn(false);
-            setEditingDeviceId(null);
-            setDeviceName('');
-            setDeviceType('Android');
-            setDeviceStatus('Available');
-            setLoginError('');
-            setShowPendingInfoModal(false); // Ensure pending info modal is closed
-        } catch (error) {
-            console.error("Error during staff logout:", error);
-        }
-    };
-
-    // Render the main application UI
-    return (
-        <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-100 flex flex-col items-center p-4 sm:p-6 font-inter">
-            <script src="https://cdn.tailwindcss.com"></script>
-            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-
-            <style>
-                {`
-                body {
-                    font-family: 'Inter', sans-serif;
-                }
-                /* Custom yellow circle icon */
-                .pending-circle {
-                    display: inline-flex;
-                    align-items: center;
-                    justify-content: center;
-                    width: 1rem; /* Adjust size as needed */
-                    height: 1rem;
-                    background-color: #f59e0b; /* Tailwind yellow-500 */
-                    border-radius: 50%;
-                    margin-left: 0.5rem;
-                    color: white;
-                    font-size: 0.75rem;
-                    font-weight: bold;
-                    cursor: pointer;
-                    line-height: 1;
-                }
-                .pending-circle:hover {
-                    background-color: #d97706; /* Darker yellow on hover */
-                }
-                `}
-            </style>
-
-            <div className="w-full max-w-4xl bg-white rounded-xl shadow-2xl p-6 sm:p-8 space-y-8">
-                <h1 className="text-4xl sm:text-5xl font-extrabold text-center text-indigo-700 mb-8">
-                    Device Inventory
-                </h1>
-
-                {/* User ID Display */}
-                {userId && (
-                    <div className="text-center text-sm text-gray-600 mb-6">
-                        <p>Your User ID (for sharing/collaboration):</p>
-                        <p className="font-mono bg-gray-100 p-2 rounded-lg inline-block break-all select-all">{userId}</p>
-                    </div>
-                )}
-
-                {/* Staff Login/Logout Button */}
-                <div className="text-center mb-6">
-                    {!isStaffLoggedIn ? (
-                        <button
-                            onClick={() => setShowStaffLoginModal(true)}
-                            className="px-4 py-2 text-sm bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-300 transform hover:scale-105"
-                        >
-                            Staff Login
-                        </button>
-                    ) : (
-                        <button
-                            onClick={handleStaffLogout}
-                            className="px-4 py-2 text-sm bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition duration-300 transform hover:scale-105"
-                        >
-                            Staff Logout
-                        </button>
-                    )}
+        <!-- Device Input Form (Conditional Rendering) -->
+        <form id="deviceForm" class="bg-gray-50 p-6 rounded-lg shadow-inner space-y-5 hidden">
+            <h2 id="formTitle" class="text-2xl font-semibold text-gray-800 text-center">Add New Device</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label for="deviceName" class="block text-sm font-medium text-gray-700 mb-1">Device Name</label>
+                    <input
+                        type="text"
+                        id="deviceName"
+                        placeholder="e.g., Android Phone A"
+                        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200"
+                        required
+                    />
                 </div>
+                <div>
+                    <label for="deviceType" class="block text-sm font-medium text-gray-700 mb-1">Device Type</label>
+                    <select
+                        id="deviceType"
+                        class="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-indigo-500 focus:border-indigo-500 transition duration-200"
+                    >
+                        <option value="Android">Android</option>
+                        <option value="Apple">Apple</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label for="deviceStatus" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select
+                    id="deviceStatus"
+                    class="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-indigo-500 focus:border-indigo-500 transition duration-200"
+                >
+                    <option value="Available">Available</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Broken">Broken</option>
+                </select>
+            </div>
+            <div class="flex justify-center gap-4">
+                <button
+                    type="submit"
+                    id="submitDeviceBtn"
+                    class="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-300 transform hover:scale-105"
+                >
+                    Add Device
+                </button>
+                <button
+                    type="button"
+                    id="cancelEditBtn"
+                    class="px-6 py-3 bg-gray-300 text-gray-800 font-semibold rounded-lg shadow-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 transition duration-300 transform hover:scale-105 hidden"
+                >
+                    Cancel
+                </button>
+            </div>
+        </form>
 
-
-                {/* Device Input Form (Conditional Rendering) */}
-                {isStaffLoggedIn && (
-                    <form onSubmit={handleAddOrUpdateDevice} className="bg-gray-50 p-6 rounded-lg shadow-inner space-y-5">
-                        <h2 className="text-2xl font-semibold text-gray-800 text-center">
-                            {editingDeviceId ? 'Edit Device' : 'Add New Device'}
-                        </h2>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label htmlFor="deviceName" className="block text-sm font-medium text-gray-700 mb-1">Device Name</label>
-                                <input
-                                    type="text"
-                                    id="deviceName"
-                                    value={deviceName}
-                                    onChange={(e) => setDeviceName(e.target.value)}
-                                    placeholder="e.g., Android Phone A"
-                                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200"
-                                    required
-                                />
-                            </div>
-                            <div>
-                                <label htmlFor="deviceType" className="block text-sm font-medium text-gray-700 mb-1">Device Type</label>
-                                <select
-                                    id="deviceType"
-                                    value={deviceType}
-                                    onChange={(e) => setDeviceType(e.target.value)}
-                                    className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-indigo-500 focus:border-indigo-500 transition duration-200"
-                                >
-                                    <option value="Android">Android</option>
-                                    <option value="Apple">Apple</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div>
-                            <label htmlFor="deviceStatus" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                            <select
-                                id="deviceStatus"
-                                value={deviceStatus}
-                                onChange={(e) => setDeviceStatus(e.target.value)}
-                                className="w-full p-3 border border-gray-300 rounded-lg bg-white focus:ring-indigo-500 focus:border-indigo-500 transition duration-200"
-                            >
-                                <option value="Available">Available</option>
-                                <option value="Pending">Pending</option>
-                                <option value="Broken">Broken</option>
-                            </select>
-                        </div>
-                        <div className="flex justify-center gap-4">
-                            <button
-                                type="submit"
-                                className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-300 transform hover:scale-105"
-                            >
-                                {editingDeviceId ? 'Save Changes' : 'Add Device'}
-                            </button>
-                            {editingDeviceId && (
-                                <button
-                                    type="button"
-                                    onClick={cancelEditing}
-                                    className="px-6 py-3 bg-gray-300 text-gray-800 font-semibold rounded-lg shadow-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 transition duration-300 transform hover:scale-105"
-                                >
-                                    Cancel
-                                </button>
-                            )}
-                        </div>
-                    </form>
-                )}
-
-                {/* Device Lists */}
-                <div className="space-y-10">
-                    {/* Android Devices */}
-                    <div className="bg-blue-50 p-6 rounded-lg shadow-md">
-                        <h2 className="text-3xl font-bold text-blue-800 mb-6 text-center">Android Devices</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> {/* Reverted to 2 columns for Working/Broken */}
-                            {/* Working Android (includes Available and Pending) */}
-                            <div>
-                                <h3 className="text-xl font-semibold text-green-700 mb-4 border-b-2 border-green-300 pb-2">Working</h3>
-                                <ul className="space-y-3">
-                                    {getWorkingDevices('Android').length > 0 ? (
-                                        getWorkingDevices('Android').map(device => (
-                                            <li key={device.id} className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition duration-200">
-                                                <span className="text-gray-900 font-medium">{device.name}</span>
-                                                {device.status === 'Pending' && ( // Show yellow circle if pending
-                                                    <span
-                                                        className="pending-circle"
-                                                        onClick={() => handleOpenPendingInfo(device.name)}
-                                                        title="This device is pending removal from inventory."
-                                                    >
-                                                        !
-                                                    </span>
-                                                )}
-                                                {isStaffLoggedIn && (
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            onClick={() => startEditing(device)}
-                                                            className="p-2 bg-yellow-500 text-white rounded-full hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                                                            aria-label="Edit device"
-                                                        >
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zm-7.536 7.536l-2.828 2.828.793.793a1 1 0 001.414 0L12 10.414 9.586 8zM5 15v1h1l9.586-9.586L14.414 5 5 14.414V15z" />
-                                                            </svg>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => confirmDelete(device)}
-                                                            className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400"
-                                                            aria-label="Delete device"
-                                                        >
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clipRule="evenodd" />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="text-gray-500 text-center">No working Android devices.</li>
-                                    )}
-                                </ul>
-                            </div>
-                            {/* Broken Android */}
-                            <div>
-                                <h3 className="text-xl font-semibold text-red-700 mb-4 border-b-2 border-red-300 pb-2">Broken</h3>
-                                <ul className="space-y-3">
-                                    {getBrokenDevices('Android').length > 0 ? (
-                                        getBrokenDevices('Android').map(device => (
-                                            <li key={device.id} className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition duration-200">
-                                                <span className="text-gray-900 font-medium">{device.name}</span>
-                                                {isStaffLoggedIn && (
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            onClick={() => startEditing(device)}
-                                                            className="p-2 bg-yellow-500 text-white rounded-full hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                                                            aria-label="Edit device"
-                                                        >
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zm-7.536 7.536l-2.828 2.828.793.793a1 1 0 001.414 0L12 10.414 9.586 8zM5 15v1h1l9.586-9.586L14.414 5 5 14.414V15z" />
-                                                            </svg>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => confirmDelete(device)}
-                                                            className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400"
-                                                            aria-label="Delete device"
-                                                        >
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clipRule="evenodd" />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="text-gray-500 text-center">No broken Android devices.</li>
-                                    )}
-                                </ul>
-                            </div>
-                        </div>
+        <!-- Device Lists -->
+        <div class="space-y-10">
+            <!-- Android Devices -->
+            <div class="bg-blue-50 p-6 rounded-lg shadow-md">
+                <h2 class="text-3xl font-bold text-blue-800 mb-6 text-center">Android Devices</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Working Android (includes Available and Pending) -->
+                    <div>
+                        <h3 class="text-xl font-semibold text-green-700 mb-4 border-b-2 border-green-300 pb-2">Working</h3>
+                        <ul id="workingAndroidDevices" class="space-y-3">
+                            <!-- Devices will be rendered here by JavaScript -->
+                        </ul>
                     </div>
-
-                    {/* Apple Devices */}
-                    <div className="bg-purple-50 p-6 rounded-lg shadow-md">
-                        <h2 className="text-3xl font-bold text-purple-800 mb-6 text-center">Apple Devices</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6"> {/* Reverted to 2 columns for Working/Broken */}
-                            {/* Working Apple (includes Available and Pending) */}
-                            <div>
-                                <h3 className="text-xl font-semibold text-green-700 mb-4 border-b-2 border-green-300 pb-2">Working</h3>
-                                <ul className="space-y-3">
-                                    {getWorkingDevices('Apple').length > 0 ? (
-                                        getWorkingDevices('Apple').map(device => (
-                                            <li key={device.id} className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition duration-200">
-                                                <span className="text-gray-900 font-medium">{device.name}</span>
-                                                {device.status === 'Pending' && ( // Show yellow circle if pending
-                                                    <span
-                                                        className="pending-circle"
-                                                        onClick={() => handleOpenPendingInfo(device.name)}
-                                                        title="This device is pending removal from inventory."
-                                                    >
-                                                        !
-                                                    </span>
-                                                )}
-                                                {isStaffLoggedIn && (
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            onClick={() => startEditing(device)}
-                                                            className="p-2 bg-yellow-500 text-white rounded-full hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                                                            aria-label="Edit device"
-                                                        >
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zm-7.536 7.536l-2.828 2.828.793.793a1 1 0 001.414 0L12 10.414 9.586 8zM5 15v1h1l9.586-9.586L14.414 5 5 14.414V15z" />
-                                                            </svg>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => confirmDelete(device)}
-                                                            className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400"
-                                                            aria-label="Delete device"
-                                                        >
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clipRule="evenodd" />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="text-gray-500 text-center">No working Apple devices.</li>
-                                    )}
-                                </ul>
-                            </div>
-                            {/* Broken Apple */}
-                            <div>
-                                <h3 className="text-xl font-semibold text-red-700 mb-4 border-b-2 border-red-300 pb-2">Broken</h3>
-                                <ul className="space-y-3">
-                                    {getBrokenDevices('Apple').length > 0 ? (
-                                        getBrokenDevices('Apple').map(device => (
-                                            <li key={device.id} className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition duration-200">
-                                                <span className="text-gray-900 font-medium">{device.name}</span>
-                                                {isStaffLoggedIn && (
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            onClick={() => startEditing(device)}
-                                                            className="p-2 bg-yellow-500 text-white rounded-full hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                                                            aria-label="Edit device"
-                                                        >
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zm-7.536 7.536l-2.828 2.828.793.793a1 1 0 001.414 0L12 10.414 9.586 8zM5 15v1h1l9.586-9.586L14.414 5 5 14.414V15z" />
-                                                            </svg>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => confirmDelete(device)}
-                                                            className="p-2 bg-red-500 text-white rounded-full hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400"
-                                                            aria-label="Delete device"
-                                                        >
-                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                                                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clipRule="evenodd" />
-                                                            </svg>
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </li>
-                                        ))
-                                    ) : (
-                                        <li className="text-gray-500 text-center">No broken Apple devices.</li>
-                                    )}
-                                </ul>
-                            </div>
-                        </div>
+                    <!-- Broken Android -->
+                    <div>
+                        <h3 class="text-xl font-semibold text-red-700 mb-4 border-b-2 border-red-300 pb-2">Broken</h3>
+                        <ul id="brokenAndroidDevices" class="space-y-3">
+                            <!-- Devices will be rendered here by JavaScript -->
+                        </ul>
                     </div>
                 </div>
             </div>
 
-            {/* Delete Confirmation Modal */}
-            {showDeleteModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-lg p-6 shadow-xl max-w-sm w-full text-center">
-                        <h3 className="text-xl font-semibold text-gray-900 mb-4">Confirm Deletion</h3>
-                        <p className="text-gray-700 mb-6">Are you sure you want to delete "{deviceToDelete?.name}"?</p>
-                        <div className="flex justify-center gap-4">
-                            <button
-                                onClick={handleDeleteDevice}
-                                className="px-6 py-2 bg-red-600 text-white font-medium rounded-lg shadow hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition duration-200"
-                            >
-                                Delete
-                            </button>
-                            <button
-                                onClick={() => setShowDeleteModal(false)}
-                                className="px-6 py-2 bg-gray-300 text-gray-800 font-medium rounded-lg shadow hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 transition duration-200"
-                            >
-                                Cancel
-                            </button>
-                        </div>
+            <!-- Apple Devices -->
+            <div class="bg-purple-50 p-6 rounded-lg shadow-md">
+                <h2 class="text-3xl font-bold text-purple-800 mb-6 text-center">Apple Devices</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Working Apple (includes Available and Pending) -->
+                    <div>
+                        <h3 class="text-xl font-semibold text-green-700 mb-4 border-b-2 border-green-300 pb-2">Working</h3>
+                        <ul id="workingAppleDevices" class="space-y-3">
+                            <!-- Devices will be rendered here by JavaScript -->
+                        </ul>
+                    </div>
+                    <!-- Broken Apple -->
+                    <div>
+                        <h3 class="text-xl font-semibold text-red-700 mb-4 border-b-2 border-red-300 pb-2">Broken</h3>
+                        <ul id="brokenAppleDevices" class="space-y-3">
+                            <!-- Devices will be rendered here by JavaScript -->
+                        </ul>
                     </div>
                 </div>
-            )}
-
-            {/* NEW: Pending Info Modal */}
-            {showPendingInfoModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-lg p-6 shadow-xl max-w-sm w-full text-center">
-                        <h3 className="text-xl font-semibold text-gray-900 mb-4">Pending Device Status</h3>
-                        <p className="text-gray-700 mb-6">
-                            The device "{currentPendingDeviceName}" is currently **pending** and is about to leave the inventory.
-                        </p>
-                        <button
-                            onClick={() => setShowPendingInfoModal(false)}
-                            className="px-6 py-2 bg-indigo-600 text-white font-medium rounded-lg shadow hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-200"
-                        >
-                            Close
-                        </button>
-                    </div>
-                </div>
-            )}
-
-
-            {/* Staff Login Modal */}
-            {showStaffLoginModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-lg p-6 shadow-xl max-w-sm w-full text-center">
-                        <h3 className="text-xl font-semibold text-gray-900 mb-4">Staff Login</h3>
-                        <input
-                            type="email"
-                            value={staffEmailInput}
-                            onChange={(e) => setStaffEmailInput(e.target.value)}
-                            placeholder="Staff Email"
-                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200 mb-3"
-                            required
-                        />
-                        <input
-                            type="password"
-                            value={staffPasswordInput}
-                            onChange={(e) => setStaffPasswordInput(e.target.value)}
-                            placeholder="Staff Password"
-                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-200 mb-4"
-                            required
-                            onKeyPress={(e) => {
-                                if (e.key === 'Enter') {
-                                    handleStaffLogin();
-                                }
-                            }}
-                        />
-                        {loginError && <p className="text-red-500 text-sm mb-4">{loginError}</p>}
-                        <div className="flex justify-center gap-4">
-                            <button
-                                onClick={handleStaffLogin}
-                                className="px-6 py-2 bg-green-600 text-white font-medium rounded-lg shadow hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition duration-300 transform hover:scale-105"
-                            >
-                                Login
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setShowStaffLoginModal(false);
-                                    setStaffEmailInput('');
-                                    setStaffPasswordInput('');
-                                    setLoginError('');
-                                }}
-                                className="px-6 py-2 bg-gray-300 text-gray-800 font-medium rounded-lg shadow hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 transition duration-200"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            </div>
         </div>
-    );
-};
+    </div>
 
-export default App;
+    <!-- Staff Login Modal -->
+    <div id="staffLoginModal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">Staff Login</h2>
+            <div class="mb-4">
+                <label for="staffEmail" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input type="email" id="staffEmail" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" placeholder="staff@example.com">
+            </div>
+            <div class="mb-6">
+                <label for="staffPassword" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <input type="password" id="staffPassword" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" placeholder="••••••••">
+            </div>
+            <p id="loginErrorMessage" class="text-red-500 text-sm text-center mb-4 hidden"></p>
+            <div class="flex justify-end gap-3">
+                <button id="staffLoginModalBtn"
+                    class="px-5 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-300">
+                    Login
+                </button>
+                <button id="closeStaffLoginModalBtn"
+                    class="px-5 py-2 bg-gray-300 text-gray-800 font-semibold rounded-lg shadow-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 transition duration-300">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteConfirmModal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 class="text-2xl font-bold text-red-700 mb-4 text-center">Confirm Deletion</h2>
+            <p class="text-gray-700 mb-6 text-center">Are you sure you want to delete <span id="deviceToDeleteName" class="font-bold"></span>?</p>
+            <div class="flex justify-center gap-4">
+                <button id="confirmDeleteBtn"
+                    class="px-5 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition duration-300">
+                    Delete
+                </button>
+                <button id="cancelDeleteBtn"
+                    class="px-5 py-2 bg-gray-300 text-gray-800 font-semibold rounded-lg shadow-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 transition duration-300">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pending Info Modal -->
+    <div id="pendingInfoModal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 class="text-2xl font-bold text-yellow-700 mb-4 text-center">Pending Device Information</h2>
+            <p class="text-gray-700 mb-6 text-center">
+                The device <span id="currentPendingDeviceNameDisplay" class="font-bold"></span> is currently marked as "Pending".
+                This usually means it's awaiting removal from the inventory or further processing.
+            </p>
+            <div class="flex justify-center">
+                <button id="closePendingInfoModalBtn"
+                    class="px-5 py-2 bg-gray-300 text-gray-800 font-semibold rounded-lg shadow-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 transition duration-300">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables for Firebase instances and application state
+        let app;
+        let db;
+        let auth;
+        let currentUserId = null;
+        let isAuthReady = false;
+        let isStaffLoggedIn = false;
+        let editingDeviceId = null;
+        let deviceToDelete = null;
+
+        // Pre-defined staff credentials (In a real app, manage securely!)
+        const STAFF_EMAIL = 'rtsbgoalbury@gmail.com';
+        const STAFF_PASSWORD = 'password123';
+
+        // Firebase config (using the one from the React code)
+        const firebaseConfig = {
+            apiKey: "AIzaSyBQbL6bpHc5QnD8Okx4ecGIkJo-LSh630I",
+            authDomain: "rtsbgadmininv.firebaseapp.com",
+            projectId: "rtsbgadmininv",
+            storageBucket: "rtsbgadmininv.firebasestorage.app",
+            messagingSenderId: "1003976894265",
+            appId: "1:1003976894265:web:5005f477c281c5a33c2ae8",
+            measurementId: "G-WX0CFDQEKR"
+        };
+
+        // Get elements
+        const userIdDisplay = document.getElementById('userIdDisplay');
+        const currentUserIdElem = document.getElementById('currentUserId');
+        const staffLoginBtn = document.getElementById('staffLoginBtn');
+        const staffLogoutBtn = document.getElementById('staffLogoutBtn');
+        const deviceForm = document.getElementById('deviceForm');
+        const formTitle = document.getElementById('formTitle');
+        const deviceNameInput = document.getElementById('deviceName');
+        const deviceTypeSelect = document.getElementById('deviceType');
+        const deviceStatusSelect = document.getElementById('deviceStatus');
+        const submitDeviceBtn = document.getElementById('submitDeviceBtn');
+        const cancelEditBtn = document.getElementById('cancelEditBtn');
+
+        const workingAndroidDevicesList = document.getElementById('workingAndroidDevices');
+        const brokenAndroidDevicesList = document.getElementById('brokenAndroidDevices');
+        const workingAppleDevicesList = document.getElementById('workingAppleDevices');
+        const brokenAppleDevicesList = document.getElementById('brokenAppleDevices');
+
+        const staffLoginModal = document.getElementById('staffLoginModal');
+        const staffEmailInput = document.getElementById('staffEmail');
+        const staffPasswordInput = document.getElementById('staffPassword');
+        const staffLoginModalBtn = document.getElementById('staffLoginModalBtn');
+        const closeStaffLoginModalBtn = document.getElementById('closeStaffLoginModalBtn');
+        const loginErrorMessage = document.getElementById('loginErrorMessage');
+
+        const deleteConfirmModal = document.getElementById('deleteConfirmModal');
+        const deviceToDeleteNameElem = document.getElementById('deviceToDeleteName');
+        const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+        const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+
+        const pendingInfoModal = document.getElementById('pendingInfoModal');
+        const currentPendingDeviceNameDisplay = document.getElementById('currentPendingDeviceNameDisplay');
+        const closePendingInfoModalBtn = document.getElementById('closePendingInfoModalBtn');
+
+        // Function to show/hide modals
+        function showModal(modalElement) {
+            modalElement.classList.add('show');
+        }
+
+        function hideModal(modalElement) {
+            modalElement.classList.remove('show');
+        }
+
+        // Initialize Firebase on window load
+        window.onload = function() {
+            if (!firebaseConfig || !firebaseConfig.apiKey) {
+                console.error("Firebase config is not properly defined. Please check your firebaseConfig object.");
+                return;
+            }
+
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+
+            // Authenticate user for initial app access and Firestore data fetching
+            const authenticateUser = async () => {
+                try {
+                    await signInAnonymously(auth);
+                } catch (error) {
+                    console.error("Firebase initial authentication error (anonymous sign-in failed):", error);
+                }
+            };
+
+            // Listen for auth state changes to set userId and indicate auth readiness
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    currentUserId = user.uid;
+                } else {
+                    currentUserId = crypto.randomUUID(); // Fallback for unauthenticated users if anonymous sign-in fails
+                }
+                isAuthReady = true; // Mark auth as ready once initial check is done
+                renderUserId(); // Update UI with user ID
+                fetchDevices(); // Start fetching devices once auth is ready
+            });
+
+            authenticateUser(); // Call to attempt anonymous sign-in
+
+            // Add event listeners for buttons and forms
+            staffLoginBtn.addEventListener('click', () => showModal(staffLoginModal));
+            staffLogoutBtn.addEventListener('click', handleStaffLogout);
+            staffLoginModalBtn.addEventListener('click', handleStaffLogin);
+            closeStaffLoginModalBtn.addEventListener('click', () => hideModal(staffLoginModal));
+            deviceForm.addEventListener('submit', handleAddOrUpdateDevice);
+            cancelEditBtn.addEventListener('click', cancelEditing);
+            confirmDeleteBtn.addEventListener('click', handleDeleteDevice);
+            cancelDeleteBtn.addEventListener('click', () => {
+                hideModal(deleteConfirmModal);
+                deviceToDelete = null;
+            });
+            closePendingInfoModalBtn.addEventListener('click', () => hideModal(pendingInfoModal));
+        };
+
+        // Render user ID
+        function renderUserId() {
+            if (currentUserId) {
+                currentUserIdElem.textContent = currentUserId;
+                userIdDisplay.classList.remove('hidden');
+            } else {
+                userIdDisplay.classList.add('hidden');
+            }
+        }
+
+        // Handle staff login
+        async function handleStaffLogin() {
+            loginErrorMessage.classList.add('hidden'); // Clear previous errors
+            if (!auth) {
+                loginErrorMessage.textContent = "Firebase Auth not initialized.";
+                loginErrorMessage.classList.remove('hidden');
+                console.error("Firebase Auth not initialized for staff login.");
+                return;
+            }
+
+            try {
+                const userCredential = await signInWithEmailAndPassword(auth, staffEmailInput.value, staffPasswordInput.value);
+                if (userCredential.user) {
+                    if (userCredential.user.email === STAFF_EMAIL) {
+                        isStaffLoggedIn = true;
+                        hideModal(staffLoginModal);
+                        staffLoginBtn.classList.add('hidden');
+                        staffLogoutBtn.classList.remove('hidden');
+                        deviceForm.classList.remove('hidden');
+                        loginErrorMessage.classList.add('hidden');
+                        staffEmailInput.value = '';
+                        staffPasswordInput.value = '';
+                    } else {
+                        loginErrorMessage.textContent = "Login successful, but this account is not registered as staff.";
+                        loginErrorMessage.classList.remove('hidden');
+                        signOut(auth); // Sign out non-staff account
+                    }
+                }
+            } catch (error) {
+                console.error("Staff login error:", error);
+                let errorMessage = "Login failed. Please check your email and password.";
+                if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+                    errorMessage = "Invalid email or password.";
+                } else if (error.code === 'auth/invalid-email') {
+                    errorMessage = "Invalid email format.";
+                }
+                loginErrorMessage.textContent = errorMessage;
+                loginErrorMessage.classList.remove('hidden');
+            }
+        }
+
+        // Handle staff logout
+        async function handleStaffLogout() {
+            try {
+                if (auth) {
+                    await signOut(auth);
+                    console.log("Staff logged out.");
+                }
+                isStaffLoggedIn = false;
+                editingDeviceId = null;
+                deviceNameInput.value = '';
+                deviceTypeSelect.value = 'Android';
+                deviceStatusSelect.value = 'Available';
+                loginErrorMessage.classList.add('hidden');
+                staffLoginBtn.classList.remove('hidden');
+                staffLogoutBtn.classList.add('hidden');
+                deviceForm.classList.add('hidden');
+                hideModal(pendingInfoModal); // Ensure pending info modal is closed
+                cancelEditing(); // Reset form and editing state
+            } catch (error) {
+                console.error("Error during staff logout:", error);
+            }
+        }
+
+        // Fetch devices when Firebase is ready and userId is available
+        function fetchDevices() {
+            if (!db || !isAuthReady) {
+                console.log("Waiting for DB or Auth to be ready. DB:", !!db, "AuthReady:", isAuthReady, "UserId:", currentUserId);
+                return; // Wait for Firebase to be initialized and auth to be ready
+            }
+
+            console.log("Firebase DB and Auth are ready. Attempting to fetch devices for userId:", currentUserId);
+
+            // Define the collection path for public data
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            const devicesCollectionRef = collection(db, `artifacts/${appId}/public/data/devices`);
+
+            // Set up real-time listener for devices
+            onSnapshot(devicesCollectionRef, (snapshot) => {
+                const fetchedDevices = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                renderDevices(fetchedDevices); // Render devices to the UI
+            }, (error) => {
+                console.error("Error fetching devices:", error);
+            });
+        }
+
+        // Render devices to the UI
+        function renderDevices(devices) {
+            // Clear current lists
+            workingAndroidDevicesList.innerHTML = '';
+            brokenAndroidDevicesList.innerHTML = '';
+            workingAppleDevicesList.innerHTML = '';
+            brokenAppleDevicesList.innerHTML = '';
+
+            const workingAndroid = devices.filter(device => device.type === 'Android' && (device.status === 'Available' || device.status === 'Pending'));
+            const brokenAndroid = devices.filter(device => device.type === 'Android' && device.status === 'Broken');
+            const workingApple = devices.filter(device => device.type === 'Apple' && (device.status === 'Available' || device.status === 'Pending'));
+            const brokenApple = devices.filter(device => device.type === 'Apple' && device.status === 'Broken');
+
+            function createDeviceListItem(device) {
+                const listItem = document.createElement('li');
+                listItem.className = 'flex justify-between items-center bg-white p-4 rounded-lg shadow-sm hover:shadow-md transition duration-200';
+                listItem.innerHTML = `
+                    <span class="text-gray-900 font-medium">${device.name}</span>
+                    <div class="flex gap-2 items-center">
+                        ${device.status === 'Pending' ? `<span class="pending-circle" title="This device is pending removal from inventory.">!</span>` : ''}
+                        ${isStaffLoggedIn ? `
+                            <button class="edit-btn p-2 bg-yellow-500 text-white rounded-full hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-400" aria-label="Edit device">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zm-7.536 7.536l-2.828 2.828.793.793a1 1 0 001.414 0L12 10.414 9.586 8zM5 15v1h1l9.586-9.586L14.414 5 5 14.414V15z" />
+                                </svg>
+                            </button>
+                            <button class="delete-btn p-2 bg-red-500 text-white rounded-full hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400" aria-label="Delete device">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6 0a1 1 0 11-2 0v6a1 1 0 112 0V8z" clipRule="evenodd" />
+                                </svg>
+                            </button>
+                        ` : ''}
+                    </div>
+                `;
+
+                // Add event listeners for buttons if staff is logged in
+                if (isStaffLoggedIn) {
+                    const editBtn = listItem.querySelector('.edit-btn');
+                    if (editBtn) {
+                        editBtn.addEventListener('click', () => startEditing(device));
+                    }
+                    const deleteBtn = listItem.querySelector('.delete-btn');
+                    if (deleteBtn) {
+                        deleteBtn.addEventListener('click', () => confirmDelete(device));
+                    }
+                }
+                // Add event listener for pending circle
+                const pendingCircle = listItem.querySelector('.pending-circle');
+                if (pendingCircle) {
+                    pendingCircle.addEventListener('click', () => handleOpenPendingInfo(device.name));
+                }
+
+                return listItem;
+            }
+
+            if (workingAndroid.length > 0) {
+                workingAndroid.forEach(device => workingAndroidDevicesList.appendChild(createDeviceListItem(device)));
+            } else {
+                workingAndroidDevicesList.innerHTML = '<li class="text-gray-500 text-center">No working Android devices.</li>';
+            }
+
+            if (brokenAndroid.length > 0) {
+                brokenAndroid.forEach(device => brokenAndroidDevicesList.appendChild(createDeviceListItem(device)));
+            } else {
+                brokenAndroidDevicesList.innerHTML = '<li class="text-gray-500 text-center">No broken Android devices.</li>';
+            }
+
+            if (workingApple.length > 0) {
+                workingApple.forEach(device => workingAppleDevicesList.appendChild(createDeviceListItem(device)));
+            } else {
+                workingAppleDevicesList.innerHTML = '<li class="text-gray-500 text-center">No working Apple devices.</li>';
+            }
+
+            if (brokenApple.length > 0) {
+                brokenApple.forEach(device => brokenAppleDevicesList.appendChild(createDeviceListItem(device)));
+            } else {
+                brokenAppleDevicesList.innerHTML = '<li class="text-gray-500 text-center">No broken Apple devices.</li>';
+            }
+        }
+
+        // Handle adding or updating a device
+        async function handleAddOrUpdateDevice(e) {
+            e.preventDefault(); // Prevent default form submission
+
+            // Ensure staff is logged in before proceeding
+            if (!isStaffLoggedIn) {
+                console.warn("Attempted to add/update device without staff privileges.");
+                return;
+            }
+
+            if (!deviceNameInput.value.trim()) {
+                alert('Please enter a device name.'); // Consider custom modal
+                return;
+            }
+
+            if (!db || !currentUserId) {
+                console.error("Firestore DB not initialized or User ID not available.");
+                return;
+            }
+
+            try {
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                if (editingDeviceId) {
+                    // Update existing device
+                    const deviceDocRef = doc(db, `artifacts/${appId}/public/data/devices`, editingDeviceId);
+                    await updateDoc(deviceDocRef, {
+                        name: deviceNameInput.value,
+                        type: deviceTypeSelect.value,
+                        status: deviceStatusSelect.value,
+                    });
+                    editingDeviceId = null; // Clear editing state
+                    console.log("Device updated successfully!");
+                } else {
+                    // Add new device
+                    const devicesCollectionRef = collection(db, `artifacts/${appId}/public/data/devices`);
+                    await addDoc(devicesCollectionRef, {
+                        name: deviceNameInput.value,
+                        type: deviceTypeSelect.value,
+                        status: deviceStatusSelect.value,
+                        userId: currentUserId, // Store the userId with the device for ownership/filtering
+                        createdAt: new Date().toISOString(), // Add a timestamp
+                    });
+                    console.log("Device added successfully!");
+                }
+                // Clear form fields after action
+                deviceNameInput.value = '';
+                deviceTypeSelect.value = 'Android';
+                deviceStatusSelect.value = 'Available'; // Set default status for new entry back to Available
+                cancelEditing(); // Reset form for new entry
+            } catch (error) {
+                console.error("Error adding/updating device:", error);
+            }
+        }
+
+        // Handle deleting a device
+        async function handleDeleteDevice() {
+            // Ensure staff is logged in before proceeding
+            if (!isStaffLoggedIn) {
+                console.warn("Attempted to delete device without staff privileges.");
+                hideModal(deleteConfirmModal); // Close modal if somehow opened without login
+                deviceToDelete = null;
+                return;
+            }
+
+            if (!db || !deviceToDelete) {
+                console.error("Firestore DB not initialized or no device selected for deletion.");
+                return;
+            }
+            try {
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const deviceDocRef = doc(db, `artifacts/${appId}/public/data/devices`, deviceToDelete.id);
+                await deleteDoc(deviceDocRef);
+                console.log("Device deleted successfully!");
+                hideModal(deleteConfirmModal); // Close the modal
+                deviceToDelete = null; // Clear the device to delete
+            } catch (error) {
+                console.error("Error deleting device:", error);
+            }
+        }
+
+        // Function to set up the form for editing
+        function startEditing(device) {
+            if (!isStaffLoggedIn) return; // Prevent editing if not staff
+            editingDeviceId = device.id;
+            deviceNameInput.value = device.name;
+            deviceTypeSelect.value = device.type;
+            deviceStatusSelect.value = device.status;
+
+            formTitle.textContent = 'Edit Device';
+            submitDeviceBtn.textContent = 'Save Changes';
+            cancelEditBtn.classList.remove('hidden');
+        }
+
+        // Function to cancel editing
+        function cancelEditing() {
+            editingDeviceId = null;
+            deviceNameInput.value = '';
+            deviceTypeSelect.value = 'Android';
+            deviceStatusSelect.value = 'Available'; // Reset to Available
+
+            formTitle.textContent = 'Add New Device';
+            submitDeviceBtn.textContent = 'Add Device';
+            cancelEditBtn.classList.add('hidden');
+        }
+
+        // Show delete confirmation modal
+        function confirmDelete(device) {
+            if (!isStaffLoggedIn) return; // Prevent deleting if not staff
+            deviceToDelete = device;
+            deviceToDeleteNameElem.textContent = device.name;
+            showModal(deleteConfirmModal);
+        }
+
+        // Open pending info modal
+        function handleOpenPendingInfo(deviceName) {
+            currentPendingDeviceNameDisplay.textContent = deviceName;
+            showModal(pendingInfoModal);
+        }
+    </script>
+</body>
+</html>
