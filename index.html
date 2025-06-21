@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pre-owned Device Marketplace</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -15,7 +14,6 @@
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
-    <!-- Navigation Bar -->
     <nav class="bg-gray-800 p-4 shadow-lg">
         <div class="container mx-auto flex justify-between items-center">
             <a href="#" class="text-white text-2xl font-bold rounded-md hover:text-gray-300 transition duration-300">Reuben's Trade Swap Buy and Go</a>
@@ -32,12 +30,10 @@
         </div>
     </nav>
 
-    <!-- Hero Section -->
     <header class="bg-gradient-to-r from-blue-500 to-purple-600 text-white py-20 text-center shadow-inner">
         <div class="container mx-auto px-4">
             <h1 class="text-5xl md:text-6xl font-extrabold mb-4 animate-fade-in">Your Hub for Pre-owned Devices</h1>
             <p class="text-xl md:text-2xl mb-2 opacity-90 animate-fade-in-delay">Sell, Trade, and Upgrade Your Tech Seamlessly</p>
-            <!-- Emphasized local service area information here -->
             <p class="text-lg md:text-xl opacity-90 mb-8 font-bold">Serving Lavington, Springdale Heights, Glenroy, and Albury only.</p>
             <div class="space-x-4">
                 <a href="#buy" class="bg-white text-blue-600 hover:bg-blue-100 px-8 py-4 rounded-full font-semibold text-lg shadow-lg transform hover:scale-105 transition duration-300 inline-block">Buy Now</a>
@@ -46,11 +42,9 @@
         </div>
     </header>
 
-    <!-- Buy Your Device Section -->
     <section id="buy" class="py-16 bg-white shadow-md rounded-lg m-8">
         <div class="container mx-auto px-4">
             <h2 class="text-4xl font-bold text-gray-800 mb-10 text-center">Buy Your Device</h2>
-            <!-- Adjusted grid to single column for smaller screens when content is removed -->
             <div class="grid md:grid-cols-1 gap-10 items-center max-w-2xl mx-auto">
                 <div class="bg-gray-50 p-8 rounded-lg shadow-xl border border-gray-200">
                     <h3 class="text-3xl font-semibold text-gray-700 mb-6 text-center">Simple Steps to Buy Locally</h3>
@@ -68,17 +62,15 @@
                             <span class="text-blue-500 mr-3 text-2xl">✔</span> Take home your new-to-you device instantly!
                         </li>
                     </ul>
-                    <button onclick="showMessageBox('Simulated: Contact us to buy a device!')" class="mt-8 w-full bg-blue-600 text-white py-4 rounded-lg font-bold text-xl hover:bg-blue-700 transition duration-300 shadow-md">Find Your Next Device</button>
+                    <a href="https://rtsbgo.pages.dev/buy" class="mt-8 w-full block text-center bg-blue-600 text-white py-4 rounded-lg font-bold text-xl hover:bg-blue-700 transition duration-300 shadow-md">Find Your Next Device</a>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Trade-In Your Device Section -->
     <section id="trade" class="py-16 bg-gray-100 shadow-md rounded-lg m-8">
         <div class="container mx-auto px-4">
             <h2 class="text-4xl font-bold text-gray-800 mb-10 text-center">Trade-In Your Device</h2>
-            <!-- Adjusted grid to single column for smaller screens when content is removed -->
             <div class="grid md:grid-cols-1 gap-10 items-center max-w-2xl mx-auto">
                 <div class="bg-white p-8 rounded-lg shadow-xl border border-gray-200">
                     <h3 class="text-3xl font-semibold text-gray-700 mb-6 text-center">Upgrade with Ease Locally</h3>
@@ -96,13 +88,12 @@
                             <span class="text-purple-500 mr-3 text-2xl">★</span> Enjoy a seamless local trade-in experience with less waste.
                         </li>
                     </ul>
-                    <button onclick="showMessageBox('Simulated: Contact us to trade-in your device!')" class="mt-8 w-full bg-purple-600 text-white py-4 rounded-lg font-bold text-xl hover:bg-purple-700 transition duration-300 shadow-md">Get Started Trading</button>
+                    <a href="https://rtsbgo.pages.dev/trade" class="mt-8 w-full block text-center bg-purple-600 text-white py-4 rounded-lg font-bold text-xl hover:bg-purple-700 transition duration-300 shadow-md">Get Started Trading</a>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Why Choose Us? Section -->
     <section id="benefits" class="py-16 bg-white shadow-md rounded-lg m-8">
         <div class="container mx-auto px-4 text-center">
             <h2 class="text-4xl font-bold text-gray-800 mb-10">Why Choose Reuben's Trade Swap Buy and Go?</h2>
@@ -123,7 +114,6 @@
         </div>
     </section>
 
-    <!-- How Our Process Works Section -->
     <section id="process" class="py-16 bg-gray-100 shadow-md rounded-lg m-8">
         <div class="container mx-auto px-4 text-center">
             <h2 class="text-4xl font-bold text-gray-800 mb-10">Our Simple Local Process</h2>
@@ -152,7 +142,6 @@
         </div>
     </section>
 
-    <!-- Frequently Asked Questions Section -->
     <section id="faq" class="py-16 bg-white shadow-md rounded-lg m-8">
         <div class="container mx-auto px-4">
             <h2 class="text-4xl font-bold text-gray-800 mb-10 text-center">Frequently Asked Questions</h2>
@@ -173,7 +162,6 @@
         </div>
     </section>
 
-    <!-- Data Security and Privacy Section -->
     <section id="security" class="py-16 bg-gray-100 shadow-md rounded-lg m-8">
         <div class="container mx-auto px-4 text-center">
             <h2 class="text-4xl font-bold text-gray-800 mb-10">Your Data, Our Priority</h2>
@@ -185,7 +173,6 @@
         </div>
     </section>
 
-    <!-- Environmental Impact Section -->
     <section id="environment" class="py-16 bg-white shadow-md rounded-lg m-8">
         <div class="container mx-auto px-4 text-center">
             <h2 class="text-4xl font-bold text-gray-800 mb-10">Sustainable Tech, Brighter Future</h2>
@@ -197,32 +184,28 @@
         </div>
     </section>
 
-    <!-- Call to Action Section -->
     <section class="bg-blue-700 text-white py-16 text-center shadow-inner m-8 rounded-lg">
         <div class="container mx-auto px-4">
             <h2 class="text-4xl font-bold mb-4">Ready to Get Started Locally?</h2>
             <p class="text-xl mb-4 opacity-90">Call us today!</p>
             <p class="text-3xl font-extrabold mb-8"><a href="tel:+61421045239" class="text-white hover:underline">(+61) 421 045 239</a></p>
             <p class="text-xl mb-8 opacity-90">Serving Lavington, Springdale Heights, Glenroy, and Albury!</p>
-            <a href="https://rtsbgo.pages.dev/" class="bg-white text-blue-700 hover:bg-blue-100 px-8 py-4 rounded-full font-semibold text-lg shadow-lg transform hover:scale-105 transition duration-300 inline-block">Our Support Form</a>
+            <a href="https://rtsbgo.pages.dev/support" class="bg-white text-blue-700 hover:bg-blue-100 px-8 py-4 rounded-full font-semibold text-lg shadow-lg transform hover:scale-105 transition duration-300 inline-block">Our Support Form</a>
         </div>
     </section>
 
-    <!-- Footer -->
     <footer id="contact" class="bg-gray-800 text-white py-8 mt-auto shadow-inner">
         <div class="container mx-auto px-4 text-center">
             <p>&copy; 2025 Reuben's Trade Swap Buy and Go. All rights reserved.</p>
-            <!-- Emphasized local service area information here -->
             <p class="text-sm mt-2 font-bold">Proudly serving Lavington, Springdale Heights, Glenroy, and Albury.</p>
             <div class="flex justify-center space-x-6 mt-4">
                 <a href="#" class="hover:text-gray-300 transition duration-300">Privacy Policy</a>
                 <a href="#" class="hover:text-gray-300 transition duration-300">Terms of Service</a>
-                <a href="https://rtsbgo.pages.dev/" class="hover:text-gray-300 transition duration-300">Support</a>
+                <a href="https://rtsbgo.pages.dev/support" class="hover:text-gray-300 transition duration-300">Support</a>
             </div>
         </div>
     </footer>
 
-    <!-- Custom Message Box HTML -->
     <div id="messageBox" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div class="bg-white p-6 rounded-lg shadow-2xl max-w-sm w-full mx-4">
             <h3 id="messageBoxTitle" class="text-2xl font-bold mb-4 text-gray-800"></h3>
